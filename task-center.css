@@ -1,0 +1,69 @@
+#paper-markdown-task-center {
+  min-width: 760px;
+  min-height: 620px;
+}
+
+#paper-markdown-task-center .paper-markdown-task-shell {
+  padding: 18px 22px;
+  gap: 14px;
+  overflow: auto;
+}
+
+#paper-markdown-task-center html|h1 {
+  margin: 0 0 4px;
+  font-size: 1.35em;
+}
+
+#paper-markdown-task-center html|h2 {
+  margin: 0 0 8px;
+  font-size: 1.1em;
+}
+
+#paper-markdown-task-center html|label {
+  display: block;
+}
+
+#paper-markdown-task-center .paper-markdown-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(260px, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+}
+
+#paper-markdown-task-center .paper-markdown-action-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+#paper-markdown-task-center .paper-markdown-status {
+  color: var(--fill-secondary);
+}
+
+#paper-markdown-task-center .paper-markdown-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#paper-markdown-task-center .paper-markdown-note {
+  max-width: 820px;
+  color: var(--fill-secondary);
+  line-height: 1.35;
+}
+
+#paper-markdown-task-center .paper-markdown-log {
+  box-sizing: border-box;
+  width: min(840px, 100%);
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+#paper-markdown-task-center html|select,
+#paper-markdown-task-center html|button {
+  max-width: 420px;
+}

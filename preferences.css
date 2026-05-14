@@ -1,0 +1,67 @@
+#paper-markdown-preferences html|h2 {
+  margin: 0 0 8px;
+  font-size: 1.15em;
+}
+
+#paper-markdown-preferences html|label {
+  display: block;
+}
+
+#paper-markdown-preferences .paper-markdown-field,
+#paper-markdown-preferences .paper-markdown-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(260px, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+}
+
+#paper-markdown-preferences .paper-markdown-checkboxes {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#paper-markdown-preferences .paper-markdown-action-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+#paper-markdown-preferences .paper-markdown-status {
+  color: var(--fill-secondary);
+}
+
+#paper-markdown-preferences .paper-markdown-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#paper-markdown-preferences .paper-markdown-note {
+  max-width: 760px;
+  color: var(--fill-secondary);
+  line-height: 1.35;
+}
+
+#paper-markdown-preferences .paper-markdown-log {
+  box-sizing: border-box;
+  width: min(760px, 100%);
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+#paper-markdown-preferences html|input,
+#paper-markdown-preferences html|select,
+#paper-markdown-preferences html|button {
+  max-width: 420px;
+}
+
+#paper-markdown-preferences .paper-markdown-template {
+  box-sizing: border-box;
+  width: min(760px, 100%);
+  max-width: 760px;
+}

@@ -1,0 +1,129 @@
+<vbox id="paper-markdown-preferences"
+      xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml"
+      onload="PaperMarkdownPrefs.init()">
+  <linkset>
+    <html:link rel="localization" href="paper-markdown.ftl"/>
+  </linkset>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="paper-markdown-prefs-api-heading"/></label>
+    <html:div class="paper-markdown-field">
+      <html:label for="paper-markdown-api-token" data-l10n-id="paper-markdown-prefs-api-token"/>
+      <html:input id="paper-markdown-api-token"
+                  type="password"
+                  preference="extensions.paper-markdown.apiToken"
+                  autocomplete="off"/>
+    </html:div>
+    <html:div class="paper-markdown-action-row">
+      <html:button id="paper-markdown-test-api"
+                   type="button"
+                   data-l10n-id="paper-markdown-prefs-test-api"/>
+      <html:span id="paper-markdown-test-api-status"
+                 class="paper-markdown-status"
+                 data-l10n-id="paper-markdown-prefs-test-api-idle"/>
+    </html:div>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="paper-markdown-prefs-extract-heading"/></label>
+    <html:div class="paper-markdown-grid">
+      <html:label for="paper-markdown-model" data-l10n-id="paper-markdown-prefs-model"/>
+      <html:select id="paper-markdown-model" preference="extensions.paper-markdown.modelVersion">
+        <html:option value="vlm">vlm</html:option>
+        <html:option value="pipeline">pipeline</html:option>
+      </html:select>
+
+      <html:label for="paper-markdown-language" data-l10n-id="paper-markdown-prefs-language"/>
+      <html:select id="paper-markdown-language" preference="extensions.paper-markdown.language">
+        <html:option value="ch">ch</html:option>
+        <html:option value="en">en</html:option>
+        <html:option value="ch_server">ch_server</html:option>
+        <html:option value="chinese_cht">chinese_cht</html:option>
+        <html:option value="japan">japan</html:option>
+        <html:option value="korean">korean</html:option>
+      </html:select>
+
+      <html:label for="paper-markdown-page-ranges" data-l10n-id="paper-markdown-prefs-page-ranges"/>
+      <html:input id="paper-markdown-page-ranges"
+                  type="text"
+                  preference="extensions.paper-markdown.pageRanges"
+                  placeholder="1-20,25"/>
+
+      <html:label for="paper-markdown-batch-size" data-l10n-id="paper-markdown-prefs-batch-size"/>
+      <html:input id="paper-markdown-batch-size"
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
+                  preference="extensions.paper-markdown.batchSize"/>
+
+      <html:label for="paper-markdown-upload-concurrency" data-l10n-id="paper-markdown-prefs-upload-concurrency"/>
+      <html:input id="paper-markdown-upload-concurrency"
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
+                  title="How many prepared PDF files are uploaded to MinerU at the same time. Higher values can speed up uploads, but may hit local network or API throttling."
+                  preference="extensions.paper-markdown.uploadConcurrency"/>
+    </html:div>
+
+    <html:div class="paper-markdown-checkboxes">
+      <html:label>
+        <html:input type="checkbox" preference="extensions.paper-markdown.isOCR"/>
+        <html:span data-l10n-id="paper-markdown-prefs-ocr"/>
+      </html:label>
+      <html:label>
+        <html:input type="checkbox" preference="extensions.paper-markdown.enableFormula"/>
+        <html:span data-l10n-id="paper-markdown-prefs-formula"/>
+      </html:label>
+      <html:label>
+        <html:input type="checkbox" preference="extensions.paper-markdown.enableTable"/>
+        <html:span data-l10n-id="paper-markdown-prefs-table"/>
+      </html:label>
+    </html:div>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="paper-markdown-prefs-output-heading"/></label>
+    <html:div class="paper-markdown-grid">
+      <html:label for="paper-markdown-existing" data-l10n-id="paper-markdown-prefs-existing"/>
+      <html:select id="paper-markdown-existing" preference="extensions.paper-markdown.onExisting">
+        <html:option value="skip" data-l10n-id="paper-markdown-prefs-existing-skip"/>
+        <html:option value="version" data-l10n-id="paper-markdown-prefs-existing-version"/>
+        <html:option value="overwrite" data-l10n-id="paper-markdown-prefs-existing-overwrite"/>
+      </html:select>
+
+      <html:label for="paper-markdown-filename-template" data-l10n-id="paper-markdown-prefs-filename-template"/>
+      <html:input id="paper-markdown-filename-template"
+                  class="paper-markdown-template"
+                  type="text"
+                  preference="extensions.paper-markdown.filenameTemplate"/>
+    </html:div>
+
+    <html:div class="paper-markdown-checkboxes">
+      <html:label>
+        <html:input type="checkbox" preference="extensions.paper-markdown.useZoteroRenameTemplate"/>
+        <html:span data-l10n-id="paper-markdown-prefs-use-zotero-template"/>
+      </html:label>
+      <html:label>
+        <html:input type="checkbox" preference="extensions.paper-markdown.keepRawZip"/>
+        <html:span data-l10n-id="paper-markdown-prefs-keep-zip"/>
+      </html:label>
+      <html:label>
+        <html:input type="checkbox" preference="extensions.paper-markdown.normalizeHeadings"/>
+        <html:span data-l10n-id="paper-markdown-prefs-normalize-headings"/>
+      </html:label>
+      <html:label>
+        <html:input id="paper-markdown-auto-convert" type="checkbox" preference="extensions.paper-markdown.autoConvert"/>
+        <html:span data-l10n-id="paper-markdown-prefs-auto-convert"/>
+      </html:label>
+    </html:div>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="paper-markdown-prefs-log-heading"/></label>
+    <html:p class="paper-markdown-note" data-l10n-id="paper-markdown-prefs-privacy-note"/>
+    <html:p class="paper-markdown-note" data-l10n-id="paper-markdown-prefs-task-center-note"/>
+  </groupbox>
+</vbox>

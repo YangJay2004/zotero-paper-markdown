@@ -1,0 +1,3 @@
+content paper-markdown ./
+locale paper-markdown en-US locale/en-US/
+locale paper-markdown zh-CN locale/zh-CN/

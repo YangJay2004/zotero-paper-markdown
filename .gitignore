@@ -1,0 +1,8 @@
+*.xpi
+.DS_Store
+node_modules/
+dist/
+tmp/
+__pycache__/
+*.py[cod]
+*.log

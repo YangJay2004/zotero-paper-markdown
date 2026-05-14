@@ -1,0 +1,121 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<?xml-stylesheet href="chrome://zotero/skin/zotero.css" type="text/css"?>
+<?xml-stylesheet href="chrome://paper-markdown/content/task-center.css" type="text/css"?>
+
+<window id="paper-markdown-task-center"
+        title="Paper Markdown"
+        windowtype="paper-markdown:task-center"
+        width="980"
+        height="760"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        style="display: flex;"
+        onload="PaperMarkdownTaskCenter.init()">
+  <linkset>
+    <html:link rel="localization" href="paper-markdown.ftl"/>
+  </linkset>
+  <script>
+    var { Zotero } = ChromeUtils.importESModule("chrome://zotero/content/zotero.mjs");
+    var { Services } = ChromeUtils.importESModule("resource://gre/modules/Services.sys.mjs");
+  </script>
+  <script src="chrome://paper-markdown/content/task-center.js"/>
+
+  <vbox class="paper-markdown-task-shell" flex="1">
+    <html:h1 data-l10n-id="paper-markdown-task-center-title">Paper Markdown Task Center</html:h1>
+
+    <groupbox>
+      <label><html:h2 data-l10n-id="paper-markdown-prefs-bulk-heading">Batch Conversion</html:h2></label>
+      <html:div class="paper-markdown-grid">
+        <html:label for="paper-markdown-bulk-scope" data-l10n-id="paper-markdown-prefs-bulk-scope">Scope</html:label>
+        <html:select id="paper-markdown-bulk-scope">
+          <html:option value="all" data-l10n-id="paper-markdown-prefs-cleanup-scope-all">All library Markdown</html:option>
+          <html:option value="collection" data-l10n-id="paper-markdown-prefs-bulk-scope-collection">Current collection</html:option>
+          <html:option value="selected" data-l10n-id="paper-markdown-prefs-bulk-scope-selected">Selected items</html:option>
+        </html:select>
+      </html:div>
+      <html:div class="paper-markdown-action-row">
+        <html:button id="paper-markdown-preview-bulk"
+                     type="button"
+                     data-l10n-id="paper-markdown-prefs-preview-bulk">Preview</html:button>
+        <html:button id="paper-markdown-start-queue"
+                     type="button"
+                     disabled="disabled"
+                     data-l10n-id="paper-markdown-prefs-start-queue">Start Queue</html:button>
+        <html:button id="paper-markdown-retry-failed"
+                     type="button"
+                     disabled="disabled"
+                     data-l10n-id="paper-markdown-prefs-retry-failed">Retry Failed</html:button>
+        <html:button id="paper-markdown-stop-queue"
+                     type="button"
+                     disabled="disabled"
+                     data-l10n-id="paper-markdown-prefs-stop-queue">Stop After Current</html:button>
+      </html:div>
+      <html:div class="paper-markdown-stack">
+        <html:span id="paper-markdown-bulk-status"
+                   class="paper-markdown-status"
+                   data-l10n-id="paper-markdown-prefs-convert-missing-status-idle">Preview PDFs before starting a batch queue.</html:span>
+        <html:textarea id="paper-markdown-preview-details"
+                       class="paper-markdown-log"
+                       rows="8"
+                       readonly="readonly"/>
+      </html:div>
+    </groupbox>
+
+    <groupbox>
+      <label><html:h2 data-l10n-id="paper-markdown-prefs-cleanup-heading">Markdown Management</html:h2></label>
+      <html:p class="paper-markdown-note" data-l10n-id="paper-markdown-prefs-cleanup-note">Preview generated or legacy Markdown attachments before deleting anything.</html:p>
+      <html:div class="paper-markdown-grid">
+        <html:label for="paper-markdown-cleanup-scope" data-l10n-id="paper-markdown-prefs-cleanup-scope">Scope</html:label>
+        <html:select id="paper-markdown-cleanup-scope">
+          <html:option value="all" data-l10n-id="paper-markdown-prefs-bulk-scope-all">All library PDFs</html:option>
+          <html:option value="collection" data-l10n-id="paper-markdown-prefs-bulk-scope-collection">Current collection</html:option>
+          <html:option value="selected" data-l10n-id="paper-markdown-prefs-bulk-scope-selected">Selected items</html:option>
+        </html:select>
+
+        <html:label for="paper-markdown-cleanup-target" data-l10n-id="paper-markdown-prefs-cleanup-target">Target</html:label>
+        <html:select id="paper-markdown-cleanup-target">
+          <html:option value="legacyFullMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-legacy-full">Legacy MinerU full.md attachments</html:option>
+          <html:option value="nonconformingPaperMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-nonconforming">Old/nonconforming Paper Markdown attachments</html:option>
+          <html:option value="paperMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-generated">All Paper Markdown generated attachments</html:option>
+          <html:option value="allMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-all">All Markdown-like attachments</html:option>
+        </html:select>
+      </html:div>
+      <html:div class="paper-markdown-action-row">
+        <html:button id="paper-markdown-preview-cleanup"
+                     type="button"
+                     data-l10n-id="paper-markdown-prefs-preview-cleanup">Preview Cleanup</html:button>
+        <html:button id="paper-markdown-delete-cleanup"
+                     type="button"
+                     disabled="disabled"
+                     data-l10n-id="paper-markdown-prefs-delete-cleanup">Delete Previewed Attachments</html:button>
+      </html:div>
+      <html:div class="paper-markdown-stack">
+        <html:span id="paper-markdown-cleanup-status"
+                   class="paper-markdown-status"
+                   data-l10n-id="paper-markdown-prefs-cleanup-status-idle">Preview cleanup before deleting Markdown attachments.</html:span>
+        <html:textarea id="paper-markdown-cleanup-details"
+                       class="paper-markdown-log"
+                       rows="8"
+                       readonly="readonly"/>
+      </html:div>
+    </groupbox>
+
+    <groupbox>
+      <label><html:h2 data-l10n-id="paper-markdown-prefs-log-heading">Logs and Privacy</html:h2></label>
+      <html:p class="paper-markdown-note" data-l10n-id="paper-markdown-prefs-privacy-note">PDFs are sent to MinerU only when conversion is started. The API token is stored in local Zotero preferences.</html:p>
+      <html:div class="paper-markdown-action-row">
+        <html:button id="paper-markdown-refresh-log"
+                     type="button"
+                     data-l10n-id="paper-markdown-prefs-refresh-log">Refresh Log</html:button>
+        <html:button id="paper-markdown-clear-log"
+                     type="button"
+                     data-l10n-id="paper-markdown-prefs-clear-log">Clear Log</html:button>
+      </html:div>
+      <html:textarea id="paper-markdown-log"
+                     class="paper-markdown-log"
+                     rows="10"
+                     readonly="readonly"/>
+    </groupbox>
+  </vbox>
+</window>
