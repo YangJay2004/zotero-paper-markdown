@@ -14,6 +14,19 @@ Many AI agents and coding assistants, including Codex and Claude Code, work best
 
 This is especially useful when combined with skills, MCP servers, or local research automation. A typical agent workflow can use Zotero as the source of truth for paper metadata and attachments, then read the Markdown attachment as the high-quality text representation of the paper. In that setup, Zotero remains the user's managed literature library, while the generated Markdown provides an agent-friendly layer for literature review, note generation, citation auditing, and research synthesis.
 
+## Research Basis: Why Markdown First
+
+Paper Markdown is built around a Markdown-first reading workflow because current document AI research consistently treats PDF reading as a document parsing and representation problem, not just as "send the PDF to a model."
+
+- End-to-end document reading systems need to handle raw files with complex layouts, formatting, long content, and multi-modal information. [DocBench](https://aclanthology.org/2025.knowledgenlp-1.29/) was introduced to evaluate exactly that full document-reading workflow rather than only plain text question answering.
+- Direct visual reading of long PDFs remains difficult. [MMLongBench-Doc](https://proceedings.neurips.cc/paper_files/paper/2024/hash/ae0e43289bffea0c1fa34633fc608e92-Abstract-Datasets_and_Benchmarks_Track.html) evaluates 135 PDF-formatted documents averaging 47.5 pages and 21,214 tokens; the best reported model, GPT-4o, reached 44.9 F1, and most evaluated LVLMs performed worse than LLMs reading lossy OCR text.
+- Downstream RAG quality depends heavily on document preprocessing. [From PDF to RAG-Ready](https://arxiv.org/abs/2604.04948) compared PDF-to-Markdown conversion pipelines across 19 configurations and found a wide gap between naive PDF loading, automated structured conversion, and manually curated Markdown. Its best automated setup reached 94.1% QA accuracy, while manually curated Markdown reached 97.1%.
+- Document parsing surveys frame the goal as turning unstructured or semi-structured documents into machine-readable representations for applications such as knowledge-base construction and RAG. [Document Parsing Unveiled](https://arxiv.org/abs/2410.21169) highlights that robust parsing has to recover layout, text, tables, mathematical expressions, and visual elements.
+- Scientific PDFs are especially challenging because important semantics are embedded in formulas, tables, and layout. [Nougat](https://arxiv.org/abs/2308.13418) motivates academic PDF-to-markup conversion by noting that PDF storage loses semantic information, especially for mathematical expressions.
+- MinerU is a practical extraction backend for this problem class. Its technical report, [MinerU: An Open-Source Solution for Precise Document Content Extraction](https://arxiv.org/abs/2409.18839), focuses on high-precision extraction across OCR, layout detection, formula recognition, and diverse document types.
+
+The practical conclusion is that PDF should remain the source artifact, but Markdown should be the default working representation for AI-assisted reading. A Markdown attachment gives agents stable text, headings, formula text, table text, page-derived structure, and local file access for search, chunking, embeddings, review, and citation workflows. When visual fidelity matters, such as for figures, dense tables, ambiguous formulas, or suspected extraction errors, the original Zotero PDF remains attached as the ground-truth fallback.
+
 ## Features
 
 - Convert a single Zotero PDF attachment to Markdown from the item context menu.
