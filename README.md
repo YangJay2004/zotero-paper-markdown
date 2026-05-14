@@ -33,16 +33,14 @@ Paper Markdown 是一个 Zotero 8/9 插件，用 MinerU Precision Extract API �
 dist/paper-markdown-0.5.7.xpi
 ```
 
-发布构建时可以临时注入 GitHub 相关地址，而不用把本地测试值写死进源码：
+源码中的插件 ID 和 GitHub 更新地址已经配置为：
 
-```bash
-ADDON_ID="paper-markdown@your-domain.example" \
-HOMEPAGE_URL="https://github.com/<owner>/paper-markdown" \
-UPDATE_URL="https://github.com/<owner>/paper-markdown/releases/latest/download/updates.json" \
-./scripts/build-xpi.sh
+```text
+zotero-paper-markdown@yangjay2004.github.io
+https://github.com/YangJay2004/zotero-paper-markdown/releases/latest/download/updates.json
 ```
 
-`ADDON_ID` 一旦对外发布就应保持稳定，否则 Zotero 会把后续构建视为另一个插件。
+插件 ID 一旦对外发布就应保持稳定，否则 Zotero 会把后续构建视为另一个插件。
 
 ## 安装
 
@@ -117,7 +115,7 @@ git init
 git add .
 git commit -m "Initial Paper Markdown plugin"
 git branch -M main
-git remote add origin git@github.com:<owner>/paper-markdown.git
+git remote add origin https://github.com/YangJay2004/zotero-paper-markdown.git
 git push -u origin main
 ```
 
@@ -126,13 +124,9 @@ git push -u origin main
 ```bash
 VERSION="$(node -e "process.stdout.write(require('./manifest.json').version)")"
 
-ADDON_ID="paper-markdown@your-domain.example" \
-HOMEPAGE_URL="https://github.com/<owner>/paper-markdown" \
-UPDATE_URL="https://github.com/<owner>/paper-markdown/releases/latest/download/updates.json" \
 ./scripts/build-xpi.sh
 
-UPDATE_LINK="https://github.com/<owner>/paper-markdown/releases/download/v$VERSION/paper-markdown-$VERSION.xpi" \
-ADDON_ID="paper-markdown@your-domain.example" \
+UPDATE_LINK="https://github.com/YangJay2004/zotero-paper-markdown/releases/download/v$VERSION/paper-markdown-$VERSION.xpi" \
 node scripts/create-update-manifest.js
 ```
 

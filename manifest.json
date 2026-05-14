@@ -4,9 +4,11 @@
   "version": "0.5.7",
   "description": "Convert Zotero paper PDFs into Markdown attachments with MinerU.",
   "author": "bytedance",
+  "homepage_url": "https://github.com/YangJay2004/zotero-paper-markdown",
   "applications": {
     "zotero": {
-      "id": "paper-markdown@example.com",
+      "id": "zotero-paper-markdown@yangjay2004.github.io",
+      "update_url": "https://github.com/YangJay2004/zotero-paper-markdown/releases/latest/download/updates.json",
       "strict_min_version": "8.999",
       "strict_max_version": "9.*"
     }
