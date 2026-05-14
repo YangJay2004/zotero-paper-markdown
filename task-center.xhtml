@@ -64,7 +64,7 @@
 
     <groupbox>
       <label><html:h2 data-l10n-id="paper-markdown-prefs-cleanup-heading">Markdown Management</html:h2></label>
-      <html:p class="paper-markdown-note" data-l10n-id="paper-markdown-prefs-cleanup-note">Preview generated or legacy Markdown attachments before deleting anything.</html:p>
+      <html:p class="paper-markdown-note" data-l10n-id="paper-markdown-prefs-cleanup-note">Preview generated Markdown attachments before deleting anything.</html:p>
       <html:div class="paper-markdown-grid">
         <html:label for="paper-markdown-cleanup-scope" data-l10n-id="paper-markdown-prefs-cleanup-scope">Scope</html:label>
         <html:select id="paper-markdown-cleanup-scope">
@@ -75,8 +75,6 @@
 
         <html:label for="paper-markdown-cleanup-target" data-l10n-id="paper-markdown-prefs-cleanup-target">Target</html:label>
         <html:select id="paper-markdown-cleanup-target">
-          <html:option value="legacyFullMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-legacy-full">Legacy MinerU full.md attachments</html:option>
-          <html:option value="nonconformingPaperMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-nonconforming">Old/nonconforming Paper Markdown attachments</html:option>
           <html:option value="paperMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-generated">All Paper Markdown generated attachments</html:option>
           <html:option value="allMarkdown" data-l10n-id="paper-markdown-prefs-cleanup-target-all">All Markdown-like attachments</html:option>
         </html:select>

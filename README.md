@@ -17,7 +17,7 @@ In the example above, `markdown-paper` is a Markdown attachment generated from t
 - Preview and run batch conversion across all libraries, the current collection, or selected items.
 - Track queue progress, failed tasks, retries, and runtime logs in the Paper Markdown panel.
 - Automatically convert newly added PDF attachments when enabled.
-- Preview and clean up generated or legacy Markdown attachments without touching source PDFs.
+- Preview and clean up generated Markdown attachments without touching source PDFs.
 - Test MinerU API connectivity without uploading a PDF.
 
 ## How It Works
@@ -120,8 +120,6 @@ The Paper Markdown panel also includes Markdown management tools. Cleanup always
 
 Supported cleanup targets include:
 
-- Legacy MinerU `full.md` attachments
-- Old or nonconforming Paper Markdown attachments
 - Paper Markdown generated attachments
 - All Markdown-like attachments
 

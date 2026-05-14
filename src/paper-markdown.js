@@ -47,8 +47,8 @@ PaperMarkdown = {
       zh: "预览选中 PDF"
     },
     cleanSelected: {
-      en: "Clean old Markdown for selected items",
-      zh: "清理选中条目的旧版 Markdown"
+      en: "Preview selected Markdown cleanup",
+      zh: "预览选中 Markdown 清理"
     }
   },
 
@@ -495,7 +495,7 @@ PaperMarkdown = {
 
         <html:section class="paper-markdown-panel-card">
           <html:h3>Markdown Management</html:h3>
-          <html:p class="paper-markdown-panel-note">Preview generated or legacy Markdown attachments before deleting anything.</html:p>
+          <html:p class="paper-markdown-panel-note">Preview generated Markdown attachments before deleting anything.</html:p>
           <html:label>Scope
             <html:select data-paper-markdown-field="cleanupScope">
               <html:option value="all">All library Markdown</html:option>
@@ -505,8 +505,6 @@ PaperMarkdown = {
           </html:label>
           <html:label>Target
             <html:select data-paper-markdown-field="cleanupTarget">
-              <html:option value="legacyFullMarkdown">Legacy MinerU full.md attachments</html:option>
-              <html:option value="nonconformingPaperMarkdown">Old/nonconforming Paper Markdown attachments</html:option>
               <html:option value="paperMarkdown">All Paper Markdown generated attachments</html:option>
               <html:option value="allMarkdown">All Markdown-like attachments</html:option>
             </html:select>
@@ -611,7 +609,7 @@ PaperMarkdown = {
       field("cleanupStatus").textContent = "Previewing cleanup...";
       let preview = await this.previewMarkdownCleanup(
         value("cleanupScope") || "all",
-        value("cleanupTarget") || "legacyFullMarkdown"
+        value("cleanupTarget") || "paperMarkdown"
       );
       this.renderTaskCenterCleanup(body, { status: "previewed", preview });
     }));
@@ -1378,7 +1376,7 @@ PaperMarkdown = {
         return false;
       }
       let outputInfo = this.getMarkdownOutputInfo(attachment, pdfPath, settings);
-      let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename, { allowLegacyMarkdown: true });
+      let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename);
       if (existing && settings.onExisting === "skip") {
         this.log(`Auto convert skipped ${this.formatAttachmentLabel(attachment)} because Markdown already exists`);
         return false;
@@ -1678,7 +1676,7 @@ PaperMarkdown = {
 
       let pdfPath = await attachment.getFilePathAsync();
       let outputInfo = this.getMarkdownOutputInfo(attachment, pdfPath, settings);
-      let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename, { allowLegacyMarkdown: true });
+      let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename);
       let task = this.makeAttachmentTask(attachment, parentItem, outputInfo, existing ? settings.onExisting : "create");
       if (existing) {
         task.existingMarkdown = true;
@@ -2023,7 +2021,7 @@ PaperMarkdown = {
 
     let parentItem = this.getOutputParentItem(attachment);
     let outputInfo = this.getMarkdownOutputInfo(attachment, pdfPath, settings);
-    let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename, { allowLegacyMarkdown: true });
+    let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename);
     if (existing) {
       task.existingMarkdown = true;
       task.existingMarkdownLabel = this.formatMarkdownAttachmentLabel(existing);
@@ -2173,26 +2171,23 @@ PaperMarkdown = {
     }
   },
 
-  async previewMarkdownCleanup(scope = "all", target = "legacyFullMarkdown") {
-    let settings = this.getSettings();
+  async previewMarkdownCleanup(scope = "all", target = "paperMarkdown") {
     let attachments = this.uniqueAttachments(await this.getMarkdownAttachmentsForScope(scope));
     this.log(`Markdown management preview scanned ${attachments.length} Markdown-like attachment(s) for ${this.getScopeLabel(scope)}; target ${target}`);
     return this.buildMarkdownCleanupPreview(
       attachments,
-      settings,
       scope,
       this.getScopeLabel(scope),
       target
     );
   },
 
-  async previewMarkdownCleanupForItems(items, target = "legacyFullMarkdown") {
-    let settings = this.getSettings();
+  async previewMarkdownCleanupForItems(items, target = "paperMarkdown") {
     let attachments = this.uniqueAttachments(this.resolveMarkdownAttachments(items));
-    return this.buildMarkdownCleanupPreview(attachments, settings, "selected", "selected items", target);
+    return this.buildMarkdownCleanupPreview(attachments, "selected", "selected items", target);
   },
 
-  async buildMarkdownCleanupPreview(attachments, settings, scope, scopeLabel, target) {
+  async buildMarkdownCleanupPreview(attachments, scope, scopeLabel, target) {
     let preview = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       scope,
@@ -2208,17 +2203,6 @@ PaperMarkdown = {
     for (let attachment of attachments) {
       let parentItem = attachment.parentID ? Zotero.Items.get(attachment.parentID) : null;
       let task = this.makeCleanupTask(attachment, parentItem);
-
-      if (target === "legacyFullMarkdown" && !this.isLegacyFullMarkdownAttachment(attachment)) {
-        preview.skipped.push({ ...task, reason: "Not a legacy MinerU full.md attachment" });
-        continue;
-      }
-
-      if (target === "nonconformingPaperMarkdown"
-          && !(await this.isNonconformingPaperMarkdownAttachment(attachment, parentItem, settings))) {
-        preview.skipped.push({ ...task, reason: "Already matches current Paper Markdown naming" });
-        continue;
-      }
 
       if (target === "paperMarkdown" && !(await this.isPaperMarkdownGeneratedAttachment(attachment))) {
         preview.skipped.push({ ...task, reason: "Not recognized as a Paper Markdown attachment" });
@@ -2430,69 +2414,10 @@ PaperMarkdown = {
 
   async isPaperMarkdownGeneratedAttachment(attachment) {
     if (!this.isMarkdownAttachment(attachment)) return false;
-    if (this.isLegacyFullMarkdownAttachment(attachment)) return true;
     if (await this.hasPaperMarkdownMetadata(attachment)) return true;
 
     let title = attachment.getField?.("title") || "";
     return title === this.MARKDOWN_ATTACHMENT_TITLE || title.startsWith("Markdown - ");
-  },
-
-  isLegacyFullMarkdownAttachment(attachment) {
-    if (!this.isMarkdownAttachment(attachment)) return false;
-    let values = [
-      attachment.attachmentFilename || "",
-      attachment.attachmentPath || "",
-      attachment.getField?.("title") || ""
-    ];
-    return values.some(value => {
-      let normalized = String(value || "").replace(/^storage:/, "").split(/[\\/]/).pop().toLowerCase();
-      return normalized === "full.md";
-    });
-  },
-
-  async isNonconformingPaperMarkdownAttachment(attachment, parentItem, settings) {
-    if (!parentItem || !this.isMarkdownAttachment(attachment)) return false;
-
-    let generated = await this.isPaperMarkdownGeneratedAttachment(attachment);
-    if (!generated) return false;
-
-    let title = attachment.getField?.("title") || "";
-    let filename = await this.getMarkdownAttachmentFilename(attachment);
-    let expectedFilename = await this.getExpectedMarkdownFilenameForParent(parentItem, settings);
-
-    if (title !== this.MARKDOWN_ATTACHMENT_TITLE) return true;
-    if (!expectedFilename) return false;
-    return filename !== expectedFilename;
-  },
-
-  async getExpectedMarkdownFilenameForParent(parentItem, settings) {
-    let pdfAttachment = this.getPrimaryPDFAttachment(parentItem);
-    if (pdfAttachment) {
-      let pdfPath = await pdfAttachment.getFilePathAsync().catch(() => "");
-      return this.getMarkdownOutputInfo(pdfAttachment, pdfPath, settings).filename;
-    }
-
-    let baseName = this.getTemplateDerivedBaseName(parentItem, null, settings)
-      || this.sanitizeFilename(parentItem.getField("title") || parentItem.key || "Paper");
-    return `${baseName}.md`;
-  },
-
-  getPrimaryPDFAttachment(parentItem) {
-    for (let attachmentID of parentItem.getAttachments()) {
-      let attachment = Zotero.Items.get(attachmentID);
-      if (attachment?.isPDFAttachment?.()) {
-        return attachment;
-      }
-    }
-    return null;
-  },
-
-  async getMarkdownAttachmentFilename(attachment) {
-    if (attachment?.attachmentFilename) {
-      return attachment.attachmentFilename;
-    }
-    let filePath = await attachment.getFilePathAsync().catch(() => "");
-    return filePath ? PathUtils.filename(filePath) : "";
   },
 
   async hasPaperMarkdownMetadata(attachment) {
@@ -2523,9 +2448,7 @@ PaperMarkdown = {
   },
 
   getCleanupTargetLabel(target) {
-    if (target === "legacyFullMarkdown") return "legacy MinerU full.md attachments";
     if (target === "allMarkdown") return "all Markdown-like attachments";
-    if (target === "nonconformingPaperMarkdown") return "old or nonconforming Paper Markdown attachments";
     return "Paper Markdown generated attachments";
   },
 
@@ -2661,7 +2584,7 @@ PaperMarkdown = {
     let parentItem = this.getOutputParentItem(pdfAttachment);
     let outputInfo = this.getMarkdownOutputInfo(pdfAttachment, pdfPath, settings);
     let effectiveSettings = await this.getEffectiveSettingsForAttachment(pdfAttachment, settings);
-    let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename, { allowLegacyMarkdown: true });
+    let existing = this.findExistingMarkdownAttachment(parentItem, outputInfo.filename);
     if (existing && settings.onExisting === "skip") {
       let message = `Markdown already exists for "${parentItem.getField("title")}".`;
       if (interactive) {
@@ -2998,7 +2921,7 @@ PaperMarkdown = {
     return new Date().toISOString().replace(/[:.]/g, "-");
   },
 
-  findExistingMarkdownAttachment(parentItem, outputFilename, options = {}) {
+  findExistingMarkdownAttachment(parentItem, outputFilename) {
     for (let attachmentID of parentItem.getAttachments()) {
       let attachment = Zotero.Items.get(attachmentID);
       if (!attachment) continue;
@@ -3018,9 +2941,8 @@ PaperMarkdown = {
       if (this.markdownNameMatches(filename, outputFilename)
           || this.markdownNameMatches(path, outputFilename)
           || this.markdownNameMatches(title, outputFilename)
-          || (options.allowLegacyMarkdown && this.isLegacyFullMarkdownAttachment(attachment))
           || title === this.MARKDOWN_ATTACHMENT_TITLE
-          || (options.allowLegacyMarkdown && title.startsWith("Markdown - "))) {
+          || title.startsWith("Markdown - ")) {
         return attachment;
       }
     }

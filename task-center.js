@@ -90,7 +90,7 @@ window.PaperMarkdownTaskCenter = {
   },
 
   getCleanupTarget() {
-    return document.getElementById("paper-markdown-cleanup-target")?.value || "legacyFullMarkdown";
+    return document.getElementById("paper-markdown-cleanup-target")?.value || "paperMarkdown";
   },
 
   getStatusElementForButton(buttonID) {

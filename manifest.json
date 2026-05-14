@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Paper Markdown",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Convert Zotero paper PDFs into Markdown attachments with MinerU.",
   "author": "bytedance",
   "homepage_url": "https://github.com/YangJay2004/zotero-paper-markdown",
