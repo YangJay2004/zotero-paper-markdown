@@ -6,6 +6,14 @@ Paper Markdown is a Zotero plugin that converts paper PDF attachments into Markd
 
 In the example above, `markdown-paper` is a Markdown attachment generated from the paper's full-text PDF. It remains attached to the original Zotero item, so it can be searched, opened, exported, or consumed by external reading and note-taking tools alongside the source PDF.
 
+## Why This Matters
+
+Zotero is already a strong reference manager: it stores bibliographic metadata, PDF attachments, collections, tags, notes, and citation data. Paper Markdown extends that library into a more usable knowledge base for AI-assisted research workflows.
+
+Many AI agents and coding assistants, including Codex and Claude Code, work best with plain-text, structured files. Raw PDFs are harder for agents to inspect reliably: text extraction can lose section structure, formulas, tables, reading order, and references. By attaching a MinerU-generated Markdown version next to each Zotero PDF, the same curated Zotero library can become a local paper database that agents can search, read, quote from, summarize, compare, and cite more accurately.
+
+This is especially useful when combined with skills, MCP servers, or local research automation. A typical agent workflow can use Zotero as the source of truth for paper metadata and attachments, then read the Markdown attachment as the high-quality text representation of the paper. In that setup, Zotero remains the user's managed literature library, while the generated Markdown provides an agent-friendly layer for literature review, note generation, citation auditing, and research synthesis.
+
 ## Features
 
 - Convert a single Zotero PDF attachment to Markdown from the item context menu.
