@@ -27,6 +27,19 @@ Paper Markdown is built around a Markdown-first reading workflow because current
 
 The practical conclusion is that PDF should remain the source artifact, but Markdown should be the default working representation for AI-assisted reading. A Markdown attachment gives agents stable text, headings, formula text, table text, page-derived structure, and local file access for search, chunking, embeddings, review, and citation workflows. When visual fidelity matters, such as for figures, dense tables, ambiguous formulas, or suspected extraction errors, the original Zotero PDF remains attached as the ground-truth fallback.
 
+## Agent Integrations Coming Soon
+
+Paper Markdown is designed to provide the document layer for agentic research workflows. Related skills, MCP servers, and agent plugins are planned so tools such as Codex, Claude Code, Obsidian workflows, local RAG systems, and citation-audit agents can discover Zotero items, locate their generated Markdown attachments, and use them as structured paper context.
+
+Contributions are welcome. Useful integration directions include:
+
+- Codex or Claude skills for searching a Zotero library and reading generated Markdown attachments.
+- MCP servers that expose Zotero paper metadata, PDF attachments, Markdown attachments, and conversion status to AI agents.
+- Agent plugins for literature review, paper comparison, note generation, citation checking, and research synthesis.
+- Indexing and RAG adapters that treat Zotero as the source of truth while using Paper Markdown attachments as the retrieval corpus.
+
+The plugin intentionally saves Markdown back into Zotero as ordinary child attachments, so external tools do not need a private database format to build on top of it.
+
 ## Features
 
 - Convert a single Zotero PDF attachment to Markdown from the item context menu.
