@@ -3472,6 +3472,7 @@ PaperMarkdown = {
       return markdown;
     }
 
+    let tableImagePaths = await this.collectMinerUTableImageAttachmentPaths(rootDir);
     await IOUtils.remove(attachmentsDir, { recursive: true, ignoreAbsent: true });
     await IOUtils.move(imagesDir, attachmentsDir);
 
@@ -3481,13 +3482,109 @@ PaperMarkdown = {
       .replace(/\]\(images\//g, "](Attachments/")
       .replace(/src=(["'])\.\/images\//g, "src=$1Attachments/")
       .replace(/src=(["'])images\//g, "src=$1Attachments/");
+    text = this.appendMinerUTableImageSection(text, tableImagePaths);
     await Zotero.File.putContentsAsync(markdown.path, text);
-    await this.pruneUnreferencedAttachmentFiles(attachmentsDir, text);
+    await this.pruneUnreferencedAttachmentFiles(attachmentsDir, text, tableImagePaths);
     return markdown;
   },
 
-  async pruneUnreferencedAttachmentFiles(attachmentsDir, markdownText) {
+  async collectMinerUTableImageAttachmentPaths(rootDir) {
+    let paths = new Set();
+    await this.walkFiles(rootDir, async ({ path }) => {
+      let name = PathUtils.filename(path).toLowerCase();
+      if (!name.endsWith(".json") || !name.includes("content")) {
+        return null;
+      }
+
+      try {
+        let text = await Zotero.File.getContentsAsync(path, "utf-8");
+        this.collectTableImagesFromMinerUValue(JSON.parse(text), paths);
+      }
+      catch (error) {
+        this.warn(`Could not inspect MinerU content list ${PathUtils.filename(path)} for table images: ${this.formatError(error)}`);
+      }
+      return null;
+    });
+    return paths;
+  },
+
+  collectTableImagesFromMinerUValue(value, paths) {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      for (let item of value) {
+        this.collectTableImagesFromMinerUValue(item, paths);
+      }
+      return;
+    }
+
+    let isTable = value.type === "table"
+      || value.table_body !== undefined
+      || value.table_caption !== undefined
+      || value.table_footnote !== undefined;
+    if (isTable) {
+      let attachmentPath = this.normalizeMinerUImagePathForAttachment(value.img_path || value.image_path);
+      if (attachmentPath) {
+        paths.add(attachmentPath);
+      }
+    }
+
+    for (let child of Object.values(value)) {
+      this.collectTableImagesFromMinerUValue(child, paths);
+    }
+  },
+
+  normalizeMinerUImagePathForAttachment(imagePath) {
+    let value = String(imagePath || "").trim().replace(/\\/g, "/");
+    if (!value) return "";
+
+    value = value.replace(/^\.?\//, "");
+    if (value.startsWith("Attachments/")) {
+      return this.safeDecodeURI(value);
+    }
+    if (value.startsWith("images/")) {
+      return this.safeDecodeURI(`Attachments/${value.slice("images/".length)}`);
+    }
+
+    let imagesIndex = value.indexOf("/images/");
+    if (imagesIndex !== -1) {
+      return this.safeDecodeURI(`Attachments/${value.slice(imagesIndex + "/images/".length)}`);
+    }
+    return this.safeDecodeURI(`Attachments/${value}`);
+  },
+
+  appendMinerUTableImageSection(markdownText, tableImagePaths) {
+    if (!tableImagePaths?.size) {
+      return markdownText;
+    }
+
     let referenced = this.getReferencedAttachmentPaths(markdownText);
+    let missing = [...tableImagePaths]
+      .filter(path => !referenced.has(path))
+      .sort();
+    if (!missing.length) {
+      return markdownText;
+    }
+
+    let lines = missing.map((path, index) => `![Table ${index + 1}](${this.encodeMarkdownImagePath(path)})`);
+    let text = String(markdownText || "").replace(/\s*$/, "");
+    return `${text}\n\n## Table Images\n\n${lines.join("\n\n")}\n`;
+  },
+
+  encodeMarkdownImagePath(path) {
+    return String(path || "")
+      .split("/")
+      .map(part => encodeURIComponent(part))
+      .join("/");
+  },
+
+  async pruneUnreferencedAttachmentFiles(attachmentsDir, markdownText, extraReferencedPaths = null) {
+    let referenced = this.getReferencedAttachmentPaths(markdownText);
+    for (let path of extraReferencedPaths || []) {
+      referenced.add(path);
+    }
 
     await this.walkFiles(attachmentsDir, async ({ path, relativePath }) => {
       let normalized = `Attachments/${relativePath}`;
