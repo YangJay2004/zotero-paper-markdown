@@ -2642,7 +2642,7 @@ PaperMarkdown = {
       if (!markdown) {
         throw new Error("MinerU result did not contain full.md or another Markdown file.");
       }
-      markdown = await this.organizeMinerUOutputDirectory(tempDir, markdown, settings);
+      markdown = await this.organizeMinerUOutputDirectory(tempDir, markdown, settings, pdfPath);
       markdown = await this.renameMarkdownFile(markdown, outputInfo.filename);
 
       await this.writeMetadata(tempDir, {
@@ -2724,7 +2724,7 @@ PaperMarkdown = {
       if (!markdown) {
         throw new Error("MinerU result did not contain full.md or another Markdown file.");
       }
-      markdown = await this.organizeMinerUOutputDirectory(tempDir, markdown, settings);
+      markdown = await this.organizeMinerUOutputDirectory(tempDir, markdown, settings, prepared.pdfPath);
       markdown = await this.renameMarkdownFile(markdown, prepared.outputInfo.filename);
 
       await this.writeMetadata(tempDir, {
@@ -3380,8 +3380,8 @@ PaperMarkdown = {
       || (await this.findFirstFileWithExtension(rootDir, ".md"));
   },
 
-  async organizeMinerUOutputDirectory(rootDir, markdown, settings) {
-    let normalizedMarkdown = await this.renameMinerUImagesDirectory(rootDir, markdown);
+  async organizeMinerUOutputDirectory(rootDir, markdown, settings, pdfPath = "") {
+    let normalizedMarkdown = await this.renameMinerUImagesDirectory(rootDir, markdown, pdfPath);
     if (settings.normalizeHeadings) {
       normalizedMarkdown = await this.normalizeMarkdownHeadingLevels(normalizedMarkdown);
     }
@@ -3465,16 +3465,21 @@ PaperMarkdown = {
     return /^[IVX]/.test(token);
   },
 
-  async renameMinerUImagesDirectory(rootDir, markdown) {
+  async renameMinerUImagesDirectory(rootDir, markdown, pdfPath = "") {
     let imagesDir = PathUtils.join(rootDir, "images");
     let attachmentsDir = PathUtils.join(rootDir, "Attachments");
-    if (!(await IOUtils.exists(imagesDir))) {
-      return markdown;
+    let visualAssets = await this.collectMinerUVisualAssets(rootDir);
+    if (await IOUtils.exists(imagesDir)) {
+      await IOUtils.remove(attachmentsDir, { recursive: true, ignoreAbsent: true });
+      await IOUtils.move(imagesDir, attachmentsDir);
+    }
+    else if (visualAssets.crops.length) {
+      await IOUtils.makeDirectory(attachmentsDir, { ignoreExisting: true, permissions: 0o755 });
     }
 
-    let preservedImagePaths = await this.collectMinerUPreservedImageAttachmentPaths(rootDir);
-    await IOUtils.remove(attachmentsDir, { recursive: true, ignoreAbsent: true });
-    await IOUtils.move(imagesDir, attachmentsDir);
+    if (pdfPath && visualAssets.crops.length) {
+      await this.renderMinerUVisualCrops(pdfPath, attachmentsDir, visualAssets);
+    }
 
     let text = await Zotero.File.getContentsAsync(markdown.path, "utf-8");
     text = text
@@ -3482,16 +3487,20 @@ PaperMarkdown = {
       .replace(/\]\(images\//g, "](Attachments/")
       .replace(/src=(["'])\.\/images\//g, "src=$1Attachments/")
       .replace(/src=(["'])images\//g, "src=$1Attachments/");
-    text = this.appendMinerUPreservedImageSection(text, preservedImagePaths);
+    text = this.applyAttachmentPathReplacements(text, visualAssets.replacements);
+    text = this.appendMinerUPreservedImageSection(text, visualAssets);
     await Zotero.File.putContentsAsync(markdown.path, text);
-    await this.pruneUnreferencedAttachmentFiles(attachmentsDir, text, preservedImagePaths);
+    await this.pruneUnreferencedAttachmentFiles(attachmentsDir, text, visualAssets);
     return markdown;
   },
 
-  async collectMinerUPreservedImageAttachmentPaths(rootDir) {
-    let paths = {
+  async collectMinerUVisualAssets(rootDir) {
+    let assets = {
       tables: new Set(),
-      algorithms: new Set()
+      algorithms: new Set(),
+      figures: new Set(),
+      replacements: new Map(),
+      crops: []
     };
     await this.walkFiles(rootDir, async ({ path }) => {
       let name = PathUtils.filename(path).toLowerCase();
@@ -3501,47 +3510,191 @@ PaperMarkdown = {
 
       try {
         let text = await Zotero.File.getContentsAsync(path, "utf-8");
-        this.collectPreservedImagesFromMinerUValue(JSON.parse(text), paths);
+        this.collectVisualAssetsFromMinerUValue(JSON.parse(text), assets);
       }
       catch (error) {
-        this.warn(`Could not inspect MinerU content list ${PathUtils.filename(path)} for preserved images: ${this.formatError(error)}`);
+        this.warn(`Could not inspect MinerU content list ${PathUtils.filename(path)} for visual crops: ${this.formatError(error)}`);
       }
       return null;
     });
-    return paths;
+    this.mergeAdjacentFigureCrops(assets);
+    return assets;
   },
 
-  collectPreservedImagesFromMinerUValue(value, paths) {
+  collectVisualAssetsFromMinerUValue(value, assets) {
     if (!value || typeof value !== "object") {
       return;
     }
 
     if (Array.isArray(value)) {
       for (let item of value) {
-        this.collectPreservedImagesFromMinerUValue(item, paths);
+        this.collectVisualAssetsFromMinerUValue(item, assets);
       }
       return;
     }
 
-    let isTable = value.type === "table"
-      || value.table_body !== undefined
-      || value.table_caption !== undefined
-      || value.table_footnote !== undefined;
-    let isAlgorithm = value.type === "code"
-      || value.code !== undefined
-      || value.code_body !== undefined
-      || value.code_caption !== undefined;
+    let kind = this.getMinerUVisualKind(value);
     let attachmentPath = this.normalizeMinerUImagePathForAttachment(value.img_path || value.image_path);
-    if (attachmentPath && isTable) {
-      paths.tables.add(attachmentPath);
+    if (kind && attachmentPath) {
+      this.addVisualAssetPath(assets, kind, attachmentPath);
     }
-    if (attachmentPath && isAlgorithm) {
-      paths.algorithms.add(attachmentPath);
+    if (kind) {
+      let cropRequest = this.getMinerUVisualCropRequest(value, kind, assets.crops.length + 1, attachmentPath);
+      if (cropRequest && !this.hasDuplicateCropRequest(assets.crops, cropRequest)) {
+        assets.crops.push(cropRequest);
+      }
     }
 
     for (let child of Object.values(value)) {
-      this.collectPreservedImagesFromMinerUValue(child, paths);
+      this.collectVisualAssetsFromMinerUValue(child, assets);
     }
+  },
+
+  getMinerUVisualKind(value) {
+    let type = String(value?.type || "").toLowerCase();
+    if (type === "table" || value?.table_body !== undefined || value?.table_caption !== undefined || value?.table_footnote !== undefined) {
+      return "table";
+    }
+    if (type === "algorithm"
+      || type === "code"
+      || value?.sub_type === "algorithm"
+      || value?.code !== undefined
+      || value?.code_body !== undefined
+      || value?.code_caption !== undefined
+      || value?.algorithm_content !== undefined
+      || value?.algorithm_caption !== undefined) {
+      return "algorithm";
+    }
+    if (type === "image" || type === "chart") {
+      return "figure";
+    }
+    return "";
+  },
+
+  addVisualAssetPath(assets, kind, attachmentPath) {
+    if (kind === "table") {
+      assets.tables.add(attachmentPath);
+    }
+    else if (kind === "algorithm") {
+      assets.algorithms.add(attachmentPath);
+    }
+    else if (kind === "figure") {
+      assets.figures.add(attachmentPath);
+    }
+  },
+
+  removeVisualAssetPath(assets, kind, attachmentPath) {
+    if (kind === "table") {
+      assets.tables.delete(attachmentPath);
+    }
+    else if (kind === "algorithm") {
+      assets.algorithms.delete(attachmentPath);
+    }
+    else if (kind === "figure") {
+      assets.figures.delete(attachmentPath);
+    }
+  },
+
+  getMinerUVisualCropRequest(value, kind, index, sourceAttachmentPath = "") {
+    let bbox = Array.isArray(value?.bbox) ? value.bbox.map(Number) : null;
+    let pageIndex = Number(value?.page_idx);
+    if (!bbox || bbox.length < 4 || !Number.isInteger(pageIndex) || pageIndex < 0) {
+      return null;
+    }
+    if (!bbox.every(Number.isFinite) || bbox[2] <= bbox[0] || bbox[3] <= bbox[1]) {
+      return null;
+    }
+    return {
+      kind,
+      pageIndex,
+      bbox,
+      sourceAttachmentPath,
+      filename: `${kind}-page-${pageIndex + 1}-${index}.png`
+    };
+  },
+
+  hasDuplicateCropRequest(requests, candidate) {
+    return requests.some(request => {
+      if (request.kind !== candidate.kind || request.pageIndex !== candidate.pageIndex) return false;
+      return request.bbox.every((value, index) => Math.abs(value - candidate.bbox[index]) < 1);
+    });
+  },
+
+  mergeAdjacentFigureCrops(assets) {
+    let figures = assets.crops
+      .filter(request => request.kind === "figure")
+      .sort((a, b) => {
+        let pageDiff = a.pageIndex - b.pageIndex;
+        if (pageDiff) return pageDiff;
+        let yDiff = a.bbox[1] - b.bbox[1];
+        if (Math.abs(yDiff) > 8) return yDiff;
+        return a.bbox[0] - b.bbox[0];
+      });
+    let groups = [];
+
+    for (let request of figures) {
+      let group = groups.find(candidate => this.canMergeFigureIntoGroup(candidate, request));
+      if (group) {
+        group.requests.push(request);
+        group.bbox = this.unionBBox(group.bbox, request.bbox);
+      }
+      else {
+        groups.push({
+          pageIndex: request.pageIndex,
+          bbox: request.bbox.slice(),
+          requests: [request]
+        });
+      }
+    }
+
+    let mergedRequests = [];
+    let mergedMembers = new Set();
+    for (let group of groups) {
+      if (group.requests.length < 2) continue;
+      let sourcePaths = group.requests
+        .map(request => request.sourceAttachmentPath)
+        .filter(Boolean);
+      let merged = {
+        kind: "figure",
+        pageIndex: group.pageIndex,
+        bbox: group.bbox,
+        sourceAttachmentPath: sourcePaths[0] || "",
+        sourceAttachmentPaths: sourcePaths,
+        filename: `figure-page-${group.pageIndex + 1}-merged-${mergedRequests.length + 1}.png`
+      };
+      mergedRequests.push(merged);
+      for (let request of group.requests) {
+        mergedMembers.add(request);
+      }
+    }
+    if (!mergedRequests.length) return;
+
+    assets.crops = assets.crops
+      .filter(request => !mergedMembers.has(request))
+      .concat(mergedRequests);
+  },
+
+  canMergeFigureIntoGroup(group, request) {
+    if (group.pageIndex !== request.pageIndex) return false;
+    let overlap = this.verticalOverlapRatio(group.bbox, request.bbox);
+    if (overlap < 0.65) return false;
+    let gap = Math.max(0, request.bbox[0] - group.bbox[2], group.bbox[0] - request.bbox[2]);
+    return gap <= 12;
+  },
+
+  verticalOverlapRatio(a, b) {
+    let overlap = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+    let shorter = Math.min(a[3] - a[1], b[3] - b[1]);
+    return shorter > 0 ? overlap / shorter : 0;
+  },
+
+  unionBBox(a, b) {
+    return [
+      Math.min(a[0], b[0]),
+      Math.min(a[1], b[1]),
+      Math.max(a[2], b[2]),
+      Math.max(a[3], b[3])
+    ];
   },
 
   normalizeMinerUImagePathForAttachment(imagePath) {
@@ -3563,10 +3716,181 @@ PaperMarkdown = {
     return this.safeDecodeURI(`Attachments/${value}`);
   },
 
+  async renderMinerUVisualCrops(pdfPath, attachmentsDir, visualAssets) {
+    let pdftoppm = await this.findExecutable("pdftoppm", [
+      "/opt/homebrew/bin/pdftoppm",
+      "/usr/local/bin/pdftoppm",
+      "/usr/bin/pdftoppm",
+      "/Users/bytedance/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/pdftoppm"
+    ]);
+    let pdfinfo = await this.findExecutable("pdfinfo", [
+      "/opt/homebrew/bin/pdfinfo",
+      "/usr/local/bin/pdfinfo",
+      "/usr/bin/pdfinfo",
+      "/Users/bytedance/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/pdfinfo"
+    ]);
+    if (!pdftoppm || !pdfinfo) {
+      this.warn("PDF visual cropping skipped because pdftoppm or pdfinfo was not found; keeping MinerU images where available.");
+      return;
+    }
+
+    let pageSizeCache = new Map();
+    for (let request of visualAssets.crops.slice(0, 80)) {
+      try {
+        let pageNumber = request.pageIndex + 1;
+        let pageSize = pageSizeCache.get(pageNumber);
+        if (!pageSize) {
+          pageSize = await this.getPDFPageSize(pdfinfo, pdfPath, pageNumber);
+          pageSizeCache.set(pageNumber, pageSize);
+        }
+
+        let outputPath = await this.renderPDFCropWithPdftoppm(pdftoppm, pdfPath, request, pageSize);
+        let targetPath = PathUtils.join(attachmentsDir, request.filename);
+        await IOUtils.remove(targetPath, { ignoreAbsent: true });
+        await IOUtils.move(outputPath, targetPath);
+        await IOUtils.remove(PathUtils.parent(outputPath), { recursive: true, ignoreAbsent: true }).catch(e => Zotero.logError(e));
+        let croppedAttachmentPath = `Attachments/${request.filename}`;
+        let sourcePaths = request.sourceAttachmentPaths || (request.sourceAttachmentPath ? [request.sourceAttachmentPath] : []);
+        for (let sourcePath of sourcePaths) {
+          this.removeVisualAssetPath(visualAssets, request.kind, sourcePath);
+        }
+        this.addVisualAssetPath(visualAssets, request.kind, croppedAttachmentPath);
+        for (let sourcePath of sourcePaths) {
+          visualAssets.replacements.set(sourcePath, croppedAttachmentPath);
+        }
+      }
+      catch (error) {
+        this.warn(`Could not crop ${request.kind} image on page ${request.pageIndex + 1}: ${this.formatError(error)}`);
+      }
+    }
+  },
+
+  async getPDFPageSize(pdfinfo, pdfPath, pageNumber) {
+    let tempDir = await this.createTempDirectory();
+    try {
+      let outputPath = PathUtils.join(tempDir, "pdfinfo.txt");
+      await this.runShellCommand(`${this.shellQuote(pdfinfo)} -f ${pageNumber} -l ${pageNumber} ${this.shellQuote(pdfPath)} > ${this.shellQuote(outputPath)}`);
+      let text = await Zotero.File.getContentsAsync(outputPath, "utf-8");
+      let pageSpecific = new RegExp(`Page\\s+${pageNumber}\\s+size:\\s+([0-9.]+)\\s+x\\s+([0-9.]+)\\s+pts`, "i").exec(text);
+      let generic = /Page size:\s+([0-9.]+)\s+x\s+([0-9.]+)\s+pts/i.exec(text);
+      let match = pageSpecific || generic;
+      if (!match) {
+        throw new Error("pdfinfo did not report page size.");
+      }
+      return {
+        widthPt: Number(match[1]),
+        heightPt: Number(match[2])
+      };
+    }
+    finally {
+      await IOUtils.remove(tempDir, { recursive: true, ignoreAbsent: true }).catch(e => Zotero.logError(e));
+    }
+  },
+
+  async renderPDFCropWithPdftoppm(pdftoppm, pdfPath, request, pageSize) {
+    let cropDir = await this.createTempDirectory();
+    try {
+      let dpi = 300;
+      let scale = dpi / 72;
+      let paddingPt = request.kind === "figure" ? 4 : 2;
+      let x0Pt = Math.max(0, (request.bbox[0] / 1000) * pageSize.widthPt - paddingPt);
+      let y0Pt = Math.max(0, (request.bbox[1] / 1000) * pageSize.heightPt - paddingPt);
+      let x1Pt = Math.min(pageSize.widthPt, (request.bbox[2] / 1000) * pageSize.widthPt + paddingPt);
+      let y1Pt = Math.min(pageSize.heightPt, (request.bbox[3] / 1000) * pageSize.heightPt + paddingPt);
+      let outputRoot = PathUtils.join(cropDir, "visual-crop");
+      let args = [
+        "-png",
+        "-f", String(request.pageIndex + 1),
+        "-l", String(request.pageIndex + 1),
+        "-r", String(dpi),
+        "-x", String(Math.max(0, Math.round(x0Pt * scale))),
+        "-y", String(Math.max(0, Math.round(y0Pt * scale))),
+        "-W", String(Math.max(1, Math.round((x1Pt - x0Pt) * scale))),
+        "-H", String(Math.max(1, Math.round((y1Pt - y0Pt) * scale))),
+        pdfPath,
+        outputRoot
+      ];
+      await this.runProcess(pdftoppm, args);
+      let output = await this.findFirstFileWithExtension(cropDir, ".png");
+      if (!output) {
+        throw new Error("pdftoppm did not create a PNG crop.");
+      }
+      return output.path;
+    }
+    catch (error) {
+      await IOUtils.remove(cropDir, { recursive: true, ignoreAbsent: true }).catch(e => Zotero.logError(e));
+      throw error;
+    }
+  },
+
+  async findExecutable(name, candidates = []) {
+    let allCandidates = [...candidates];
+    try {
+      let pathValue = Services.env.get("PATH") || "";
+      for (let directory of pathValue.split(":")) {
+        if (directory) allCandidates.push(PathUtils.join(directory, name));
+      }
+    }
+    catch (_) {}
+
+    let seen = new Set();
+    for (let candidate of allCandidates) {
+      if (!candidate || seen.has(candidate)) continue;
+      seen.add(candidate);
+      if (await IOUtils.exists(candidate)) {
+        return candidate;
+      }
+    }
+    return "";
+  },
+
+  runProcess(executablePath, args) {
+    return new Promise((resolve, reject) => {
+      try {
+        let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+        file.initWithPath(executablePath);
+        let process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
+        process.init(file);
+        process.runwAsync(args, args.length, {
+          observe: () => {
+            if (process.exitValue === 0) resolve();
+            else reject(new Error(`${PathUtils.filename(executablePath)} exited with code ${process.exitValue}`));
+          }
+        }, false);
+      }
+      catch (error) {
+        reject(error);
+      }
+    });
+  },
+
+  async runShellCommand(command) {
+    let shell = await this.findExecutable("sh", ["/bin/sh", "/usr/bin/sh"]);
+    if (!shell) {
+      throw new Error("Shell executable was not found.");
+    }
+    return this.runProcess(shell, ["-c", command]);
+  },
+
+  shellQuote(value) {
+    return `'${String(value || "").replace(/'/g, "'\\''")}'`;
+  },
+
+  applyAttachmentPathReplacements(markdownText, replacements) {
+    let text = String(markdownText || "");
+    for (let [fromPath, toPath] of replacements || []) {
+      if (!fromPath || !toPath || fromPath === toPath) continue;
+      text = text.split(fromPath).join(toPath);
+      text = text.split(this.encodeMarkdownImagePath(fromPath)).join(this.encodeMarkdownImagePath(toPath));
+    }
+    return text;
+  },
+
   appendMinerUPreservedImageSection(markdownText, preservedImagePaths) {
     let groups = [
       { title: "Table Images", paths: preservedImagePaths?.tables || new Set(), label: "Table" },
-      { title: "Algorithm Images", paths: preservedImagePaths?.algorithms || new Set(), label: "Algorithm" }
+      { title: "Algorithm Images", paths: preservedImagePaths?.algorithms || new Set(), label: "Algorithm" },
+      { title: "Figure Images", paths: preservedImagePaths?.figures || new Set(), label: "Figure" }
     ];
     if (!groups.some(group => group.paths.size)) {
       return markdownText;
@@ -3600,6 +3924,9 @@ PaperMarkdown = {
   },
 
   async pruneUnreferencedAttachmentFiles(attachmentsDir, markdownText, extraReferencedPaths = null) {
+    if (!(await IOUtils.exists(attachmentsDir))) {
+      return;
+    }
     let referenced = this.getReferencedAttachmentPaths(markdownText);
     if (extraReferencedPaths instanceof Set) {
       for (let path of extraReferencedPaths) {
@@ -3608,6 +3935,7 @@ PaperMarkdown = {
     }
     else if (extraReferencedPaths && typeof extraReferencedPaths === "object") {
       for (let group of Object.values(extraReferencedPaths)) {
+        if (!(group instanceof Set)) continue;
         for (let path of group || []) {
           referenced.add(path);
         }

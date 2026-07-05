@@ -72,6 +72,7 @@ The plugin intentionally saves Markdown back into Zotero as ordinary child attac
 - Save generated Markdown files as Zotero stored child attachments.
 - Use MinerU's signed batch upload flow for PDF extraction.
 - Configure extraction model, language, page ranges, OCR, formula recognition, and table recognition.
+- Preserve visual blocks such as tables, algorithms, figures, and charts as Zotero attachment images.
 - Use Zotero's rename template or a plugin-level filename template for Markdown output.
 - Choose how existing Markdown attachments are handled: skip, version, or overwrite.
 - Preview and run batch conversion across all libraries, the current collection, or selected items.
@@ -90,9 +91,12 @@ Zotero PDF attachment
   -> upload PDF to MinerU
   -> poll MinerU extraction result
   -> download result archive
+  -> crop visual blocks from the local PDF using MinerU bbox metadata when local PDF tools are available
   -> select and rename Markdown output
   -> create Zotero stored Markdown attachment
 ```
+
+For tables, algorithms, figures, and charts, Paper Markdown prefers local high-DPI crops from the original PDF using MinerU's `page_idx` and `bbox` metadata. This produces stable filenames such as `table-page-6-1.png` and `algorithm-page-6-2.png` under `Attachments/`. If local `pdftoppm` or `pdfinfo` tools are unavailable, the plugin falls back to MinerU's bundled image files where MinerU provides them.
 
 The plugin does not store converted files in an external library directory by default. Zotero remains the source of truth for the generated Markdown attachment.
 
