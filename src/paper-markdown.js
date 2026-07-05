@@ -3472,7 +3472,7 @@ PaperMarkdown = {
       return markdown;
     }
 
-    let tableImagePaths = await this.collectMinerUTableImageAttachmentPaths(rootDir);
+    let preservedImagePaths = await this.collectMinerUPreservedImageAttachmentPaths(rootDir);
     await IOUtils.remove(attachmentsDir, { recursive: true, ignoreAbsent: true });
     await IOUtils.move(imagesDir, attachmentsDir);
 
@@ -3482,14 +3482,17 @@ PaperMarkdown = {
       .replace(/\]\(images\//g, "](Attachments/")
       .replace(/src=(["'])\.\/images\//g, "src=$1Attachments/")
       .replace(/src=(["'])images\//g, "src=$1Attachments/");
-    text = this.appendMinerUTableImageSection(text, tableImagePaths);
+    text = this.appendMinerUPreservedImageSection(text, preservedImagePaths);
     await Zotero.File.putContentsAsync(markdown.path, text);
-    await this.pruneUnreferencedAttachmentFiles(attachmentsDir, text, tableImagePaths);
+    await this.pruneUnreferencedAttachmentFiles(attachmentsDir, text, preservedImagePaths);
     return markdown;
   },
 
-  async collectMinerUTableImageAttachmentPaths(rootDir) {
-    let paths = new Set();
+  async collectMinerUPreservedImageAttachmentPaths(rootDir) {
+    let paths = {
+      tables: new Set(),
+      algorithms: new Set()
+    };
     await this.walkFiles(rootDir, async ({ path }) => {
       let name = PathUtils.filename(path).toLowerCase();
       if (!name.endsWith(".json") || !name.includes("content")) {
@@ -3498,24 +3501,24 @@ PaperMarkdown = {
 
       try {
         let text = await Zotero.File.getContentsAsync(path, "utf-8");
-        this.collectTableImagesFromMinerUValue(JSON.parse(text), paths);
+        this.collectPreservedImagesFromMinerUValue(JSON.parse(text), paths);
       }
       catch (error) {
-        this.warn(`Could not inspect MinerU content list ${PathUtils.filename(path)} for table images: ${this.formatError(error)}`);
+        this.warn(`Could not inspect MinerU content list ${PathUtils.filename(path)} for preserved images: ${this.formatError(error)}`);
       }
       return null;
     });
     return paths;
   },
 
-  collectTableImagesFromMinerUValue(value, paths) {
+  collectPreservedImagesFromMinerUValue(value, paths) {
     if (!value || typeof value !== "object") {
       return;
     }
 
     if (Array.isArray(value)) {
       for (let item of value) {
-        this.collectTableImagesFromMinerUValue(item, paths);
+        this.collectPreservedImagesFromMinerUValue(item, paths);
       }
       return;
     }
@@ -3524,15 +3527,20 @@ PaperMarkdown = {
       || value.table_body !== undefined
       || value.table_caption !== undefined
       || value.table_footnote !== undefined;
-    if (isTable) {
-      let attachmentPath = this.normalizeMinerUImagePathForAttachment(value.img_path || value.image_path);
-      if (attachmentPath) {
-        paths.add(attachmentPath);
-      }
+    let isAlgorithm = value.type === "code"
+      || value.code !== undefined
+      || value.code_body !== undefined
+      || value.code_caption !== undefined;
+    let attachmentPath = this.normalizeMinerUImagePathForAttachment(value.img_path || value.image_path);
+    if (attachmentPath && isTable) {
+      paths.tables.add(attachmentPath);
+    }
+    if (attachmentPath && isAlgorithm) {
+      paths.algorithms.add(attachmentPath);
     }
 
     for (let child of Object.values(value)) {
-      this.collectTableImagesFromMinerUValue(child, paths);
+      this.collectPreservedImagesFromMinerUValue(child, paths);
     }
   },
 
@@ -3555,22 +3563,33 @@ PaperMarkdown = {
     return this.safeDecodeURI(`Attachments/${value}`);
   },
 
-  appendMinerUTableImageSection(markdownText, tableImagePaths) {
-    if (!tableImagePaths?.size) {
+  appendMinerUPreservedImageSection(markdownText, preservedImagePaths) {
+    let groups = [
+      { title: "Table Images", paths: preservedImagePaths?.tables || new Set(), label: "Table" },
+      { title: "Algorithm Images", paths: preservedImagePaths?.algorithms || new Set(), label: "Algorithm" }
+    ];
+    if (!groups.some(group => group.paths.size)) {
       return markdownText;
     }
 
     let referenced = this.getReferencedAttachmentPaths(markdownText);
-    let missing = [...tableImagePaths]
-      .filter(path => !referenced.has(path))
-      .sort();
-    if (!missing.length) {
+    let sections = [];
+    for (let group of groups) {
+      let missing = [...group.paths]
+        .filter(path => !referenced.has(path))
+        .sort();
+      if (!missing.length) {
+        continue;
+      }
+      let lines = missing.map((path, index) => `![${group.label} ${index + 1}](${this.encodeMarkdownImagePath(path)})`);
+      sections.push(`## ${group.title}\n\n${lines.join("\n\n")}`);
+    }
+    if (!sections.length) {
       return markdownText;
     }
 
-    let lines = missing.map((path, index) => `![Table ${index + 1}](${this.encodeMarkdownImagePath(path)})`);
     let text = String(markdownText || "").replace(/\s*$/, "");
-    return `${text}\n\n## Table Images\n\n${lines.join("\n\n")}\n`;
+    return `${text}\n\n${sections.join("\n\n")}\n`;
   },
 
   encodeMarkdownImagePath(path) {
@@ -3582,8 +3601,17 @@ PaperMarkdown = {
 
   async pruneUnreferencedAttachmentFiles(attachmentsDir, markdownText, extraReferencedPaths = null) {
     let referenced = this.getReferencedAttachmentPaths(markdownText);
-    for (let path of extraReferencedPaths || []) {
-      referenced.add(path);
+    if (extraReferencedPaths instanceof Set) {
+      for (let path of extraReferencedPaths) {
+        referenced.add(path);
+      }
+    }
+    else if (extraReferencedPaths && typeof extraReferencedPaths === "object") {
+      for (let group of Object.values(extraReferencedPaths)) {
+        for (let path of group || []) {
+          referenced.add(path);
+        }
+      }
     }
 
     await this.walkFiles(attachmentsDir, async ({ path, relativePath }) => {
